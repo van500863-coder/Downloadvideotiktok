@@ -15,9 +15,12 @@ BOT_TOKEN = os.getenv("BOT_TOKEN") or "7668584253:AAH9K8aSpcUINeHKT8GB4DdZMf0irq
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# yt-dlp options: download best video ≤720p, no watermark
+# yt-dlp options: 
+# កែប្រែ format ដើម្បីព្យាយាមរកវីដេអូ និងសំឡេងដែលមិនត្រូវការការ "ដេរ" ច្រើន
+# ដែលជួយកាត់បន្ថយការប្រើប្រាស់ CPU នៅលើ Server កម្លាំងខ្សោយ
 ydl_opts = {
-    'format': 'best[height<=720][ext=mp4]/best',
+    # <--- បន្ទាត់នេះត្រូវបានកែប្រែ
+    'format': 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best',
     'outtmpl': 'downloads/%(id)s.%(ext)s',
     'noplaylist': True,
     'quiet': True,
@@ -45,12 +48,14 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     status_msg = await update.message.reply_text("Downloading video...")
+    
+    video_id = None # កំណត់អញ្ញត្តិ video_id ជាមុន
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             video_id = info['id']
-            ext = info['ext']
+            ext = info.get('ext', 'mp4') # ប្រើ .get() ដើម្បីសុវត្ថិភាព
             file_path = f"downloads/{video_id}.{ext}"
 
         # Send video
@@ -70,10 +75,11 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error: {e}")
         await status_msg.edit_text(f"Failed to download: {str(e)[:100]}")
         # Cleanup on failure
-        for ext in ['mp4', 'webm', 'mkv']:
-            path = f"downloads/{video_id}.{ext}" if 'video_id' in locals() else None
-            if path and os.path.exists(path):
-                os.remove(path)
+        if video_id:
+            for ext_try in ['mp4', 'webm', 'mkv']:
+                path_to_remove = f"downloads/{video_id}.{ext_try}"
+                if os.path.exists(path_to_remove):
+                    os.remove(path_to_remove)
 
 
 def main():
